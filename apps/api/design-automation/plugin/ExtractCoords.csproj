@@ -14,15 +14,22 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
+  <!-- AUTOCAD_PATH can be set via environment variable or MSBuild property -->
+  <!-- Default to 'lib' subfolder if not specified -->
+  <PropertyGroup>
+    <AutoCADPath Condition="'$(AUTOCAD_PATH)' == ''">$(MSBuildProjectDirectory)\lib</AutoCADPath>
+    <AutoCADPath Condition="'$(AUTOCAD_PATH)' != ''">$(AUTOCAD_PATH)</AutoCADPath>
+  </PropertyGroup>
+
   <!-- AutoCAD ObjectARX References for Design Automation -->
   <!-- These DLLs are provided by the Design Automation runtime -->
   <ItemGroup>
     <Reference Include="AcCoreMgd">
-      <HintPath>$(AUTOCAD_PATH)\AcCoreMgd.dll</HintPath>
+      <HintPath>$(AutoCADPath)\AcCoreMgd.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="AcDbMgd">
-      <HintPath>$(AUTOCAD_PATH)\AcDbMgd.dll</HintPath>
+      <HintPath>$(AutoCADPath)\AcDbMgd.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
