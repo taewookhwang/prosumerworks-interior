@@ -15,6 +15,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
       - name: Setup .NET Framework
         uses: microsoft/setup-msbuild@v2
 
@@ -27,21 +32,66 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path "lib" -Force
 
-          Write-Host "Compiling ObjectARX stub assemblies..."
+          Write-Host "=== Creating stub project ==="
 
-          $cscPath = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          # Create a temporary .NET project to compile the stubs
+          $stubProjectDir = "temp_stubs"
+          New-Item -ItemType Directory -Path $stubProjectDir -Force
 
-          & $cscPath /target:library /out:"lib\AcCoreMgd.dll" /nologo "scripts\ObjectARXStubs.cs"
+          # Create project file
+          $csproj = @"
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net48</TargetFramework>
+              <OutputType>Library</OutputType>
+              <AssemblyName>AcCoreMgd</AssemblyName>
+            </PropertyGroup>
+          </Project>
+          "@
+          $csproj | Out-File -FilePath "$stubProjectDir/stubs.csproj" -Encoding UTF8
+
+          # Copy stub source
+          Copy-Item "scripts/ObjectARXStubs.cs" -Destination "$stubProjectDir/"
+
+          Write-Host "=== Building stub assembly ==="
+          Push-Location $stubProjectDir
+
+          # Try dotnet build first
+          dotnet build -c Release -o ../lib 2>&1
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to compile stub DLL"
+            Write-Host "dotnet build failed, trying csc.exe..."
+
+            # Find csc.exe
+            $cscPaths = @(
+              "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe",
+              "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+            )
+
+            foreach ($cscPath in $cscPaths) {
+              if (Test-Path $cscPath) {
+                Write-Host "Using: $cscPath"
+                & $cscPath /target:library /out:"..\lib\AcCoreMgd.dll" /nologo ObjectARXStubs.cs
+                break
+              }
+            }
+          }
+
+          Pop-Location
+
+          # Create copy for AcDbMgd
+          if (Test-Path "lib/AcCoreMgd.dll") {
+            Copy-Item "lib/AcCoreMgd.dll" -Destination "lib/AcDbMgd.dll"
+            Write-Host "=== Stub assemblies created ==="
+          } else {
+            Write-Error "Failed to create stub assemblies!"
             exit 1
           }
 
-          Copy-Item "lib\AcCoreMgd.dll" -Destination "lib\AcDbMgd.dll"
-
-          Write-Host "Library folder contents:"
           Get-ChildItem lib
+
+          # Cleanup
+          Remove-Item -Recurse -Force $stubProjectDir -ErrorAction SilentlyContinue
 
       - name: Restore NuGet packages
         working-directory: apps/api/design-automation/plugin
@@ -51,10 +101,10 @@ jobs:
         shell: pwsh
         working-directory: apps/api/design-automation/plugin
         run: |
-          Write-Host "Verifying lib folder:"
+          Write-Host "=== Verifying lib folder ==="
           Get-ChildItem lib
 
-          Write-Host "Building plugin..."
+          Write-Host "=== Building plugin ==="
           msbuild ExtractCoords.csproj /p:Configuration=Release /p:Platform="Any CPU"
 
       - name: Create Bundle
@@ -69,11 +119,11 @@ jobs:
           Get-ChildItem "bin/Release/*.dll" | ForEach-Object {
             if ($_.Name -notmatch "^Ac") {
               Copy-Item $_.FullName -Destination "bundle/ExtractCoords.bundle/Contents/"
-              Write-Host "Copied dependency: $($_.Name)"
+              Write-Host "Copied: $($_.Name)"
             }
           }
 
-          Write-Host "Bundle contents:"
+          Write-Host "=== Bundle contents ==="
           Get-ChildItem -Recurse "bundle"
 
           Compress-Archive -Path "bundle/ExtractCoords.bundle/*" -DestinationPath "ExtractCoords.bundle.zip" -Force
