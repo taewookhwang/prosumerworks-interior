@@ -62,6 +62,32 @@ namespace Autodesk.AutoCAD.ApplicationServices
             get { return null; }
         }
     }
+
+    public class HostApplicationServices
+    {
+        public static HostApplicationServices Current
+        {
+            get { return null; }
+        }
+
+        public string FindFile(string fileName, Autodesk.AutoCAD.DatabaseServices.Database db, FindFileHint hint)
+        {
+            return "";
+        }
+    }
+
+    public enum FindFileHint
+    {
+        Default = 0,
+        CompiledShapeFile = 1,
+        TrueTypeFontFile = 2,
+        EmbeddedImageFile = 3,
+        XRefDrawing = 4,
+        PatternFile = 5,
+        ArxApplication = 6,
+        FontMapFile = 7,
+        FontFile = 8
+    }
 }
 
 namespace Autodesk.AutoCAD.DatabaseServices
@@ -71,6 +97,11 @@ namespace Autodesk.AutoCAD.DatabaseServices
         public bool IsNull
         {
             get { return true; }
+        }
+
+        public bool IsValid
+        {
+            get { return false; }
         }
     }
 
@@ -83,7 +114,31 @@ namespace Autodesk.AutoCAD.DatabaseServices
     }
 
     public enum OpenMode { ForRead = 0, ForWrite = 1 }
-    public enum UnitsValue { Undefined = 0, Inches = 1, Millimeters = 4 }
+
+    public enum UnitsValue
+    {
+        Undefined = 0,
+        Inches = 1,
+        Feet = 2,
+        Miles = 3,
+        Millimeters = 4,
+        Centimeters = 5,
+        Meters = 6,
+        Kilometers = 7,
+        Microinches = 8,
+        Mils = 9,
+        Yards = 10,
+        Angstroms = 11,
+        Nanometers = 12,
+        Microns = 13,
+        Decimeters = 14,
+        Decameters = 15,
+        Hectometers = 16,
+        Gigameters = 17,
+        AstronomicalUnits = 18,
+        LightYears = 19,
+        Parsecs = 20
+    }
 
     public class Database : System.IDisposable
     {
@@ -100,6 +155,11 @@ namespace Autodesk.AutoCAD.DatabaseServices
         public UnitsValue Insunits
         {
             get { return UnitsValue.Millimeters; }
+        }
+
+        public string Filename
+        {
+            get { return ""; }
         }
 
         public void Dispose() { }
@@ -169,21 +229,63 @@ namespace Autodesk.AutoCAD.DatabaseServices
             get { return ""; }
         }
 
+        public ObjectId BlockTableRecord
+        {
+            get { return default(ObjectId); }
+        }
+
+        public ObjectId DynamicBlockTableRecord
+        {
+            get { return default(ObjectId); }
+        }
+
+        public bool IsDynamicBlock
+        {
+            get { return false; }
+        }
+
         public string EffectiveName()
         {
             return "";
         }
     }
 
-    public class SymbolTable : DBObject { }
-    public class BlockTable : SymbolTable { }
+    public class SymbolTable : DBObject, System.Collections.IEnumerable
+    {
+        public System.Collections.IEnumerator GetEnumerator()
+        {
+            return null;
+        }
+    }
+
+    public class BlockTable : SymbolTable
+    {
+        public ObjectId this[string name]
+        {
+            get { return default(ObjectId); }
+        }
+
+        public bool Has(string name)
+        {
+            return false;
+        }
+    }
+
     public class SymbolTableRecord : DBObject { }
 
-    public class BlockTableRecord : SymbolTableRecord
+    public class BlockTableRecord : SymbolTableRecord, System.Collections.IEnumerable
     {
+        public const string ModelSpace = "*Model_Space";
+        public const string PaperSpace = "*Paper_Space";
+
         public string Name
         {
             get { return ""; }
+        }
+
+        public System.Collections.IEnumerator GetEnumerator()
+        {
+            return null;
         }
     }
 }
