@@ -1,10 +1,11 @@
 name: Build AutoCAD Plugin
 
 on:
-  workflow_dispatch:  # 수동 실행
+  workflow_dispatch:
   push:
     paths:
       - 'apps/api/design-automation/plugin/**'
+      - '.github/workflows/build-autocad-plugin.yml'
 
 jobs:
   build:
@@ -20,76 +21,11 @@ jobs:
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Download ObjectARX SDK References
+      - name: Create ObjectARX Stub Assemblies
+        shell: pwsh
         run: |
-          # Create SDK directory
-          $sdkPath = "apps/api/design-automation/plugin/lib"
-          New-Item -ItemType Directory -Path $sdkPath -Force
-
-          # Try to install AutoCAD.NET from NuGet (community package)
-          # If this fails, we'll create stub assemblies
-          try {
-            # Option 1: Try official Autodesk NuGet feed
-            nuget sources add -name "Autodesk" -source "https://api.nuget.org/v3/index.json" 2>$null
-
-            # Option 2: Try community package
-            $result = nuget install Autodesk.AutoCAD.Interop -OutputDirectory packages -NoCache 2>&1
-            Write-Host "NuGet result: $result"
-          } catch {
-            Write-Host "NuGet package not found, will use reference assemblies approach"
-          }
-
-          # Download ObjectARX reference DLLs from Autodesk's official SDK
-          # Using alternative sources if primary fails
-          $dlls = @("AcCoreMgd.dll", "AcDbMgd.dll")
-          $sources = @(
-            "https://raw.githubusercontent.com/AuZhou/acad-ref/main/AutoCAD%202024",
-            "https://raw.githubusercontent.com/AcadNet/ObjectARX-Stubs/main/2024"
-          )
-
-          $downloaded = $false
-          foreach ($source in $sources) {
-            if ($downloaded) { break }
-            Write-Host "Trying source: $source"
-
-            $allSuccess = $true
-            foreach ($dll in $dlls) {
-              try {
-                $url = "$source/$dll"
-                $outPath = "$sdkPath/$dll"
-                Write-Host "Downloading $url..."
-                Invoke-WebRequest -Uri $url -OutFile $outPath -TimeoutSec 30
-                if (Test-Path $outPath) {
-                  $size = (Get-Item $outPath).Length
-                  Write-Host "Downloaded $dll ($size bytes)"
-                } else {
-                  $allSuccess = $false
-                }
-              } catch {
-                Write-Host "Failed to download from $source : $_"
-                $allSuccess = $false
-              }
-            }
-            if ($allSuccess) {
-              $downloaded = $true
-              Write-Host "Successfully downloaded all DLLs from $source"
-            }
-          }
-
-          # If all downloads failed, create minimal stub assemblies
-          if (-not $downloaded) {
-            Write-Host "Creating stub assemblies for build..."
-
-            # Install ILAsm for creating stub DLLs
-            # We'll use a different approach - create empty placeholder files
-            # and modify the project to skip missing references
-
-            Write-Host "WARNING: Could not download ObjectARX SDK. Build may fail."
-            Write-Host "Please manually add ObjectARX SDK DLLs to the repository."
-          }
-
-          Write-Host "SDK directory contents:"
-          Get-ChildItem $sdkPath -ErrorAction SilentlyContinue
+          cd apps/api/design-automation/plugin
+          ./scripts/create-stubs.ps1 -OutputPath "lib"
 
       - name: Restore NuGet packages
         run: |
@@ -97,49 +33,40 @@ jobs:
           nuget restore ExtractCoords.csproj -NoCache
 
       - name: Build Plugin
+        shell: pwsh
         run: |
           cd apps/api/design-automation/plugin
-
-          # ObjectARX 참조 경로 설정 (lib 폴더 사용)
           $sdkPath = "${{ github.workspace }}/apps/api/design-automation/plugin/lib"
-
           Write-Host "SDK Path: $sdkPath"
-          Write-Host "Files in SDK folder:"
-          Get-ChildItem $sdkPath -ErrorAction SilentlyContinue
-
-          # MSBuild로 빌드 (AUTOCAD_PATH를 lib 폴더로 설정)
+          Get-ChildItem $sdkPath
           msbuild ExtractCoords.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:AUTOCAD_PATH="$sdkPath"
 
       - name: Create Bundle Structure
+        shell: pwsh
         run: |
           cd apps/api/design-automation/plugin
 
-          # 번들 디렉토리 생성
           New-Item -ItemType Directory -Path "bundle/ExtractCoords.bundle/Contents" -Force
 
-          # 파일 복사
           Copy-Item "bin/Release/ExtractCoords.dll" -Destination "bundle/ExtractCoords.bundle/Contents/"
           Copy-Item "PackageContents.xml" -Destination "bundle/ExtractCoords.bundle/"
 
-          # 의존성 DLL 복사 (있는 경우)
-          $depsDir = "bin/Release"
-          $deps = @("System.Text.Json.dll", "System.Memory.dll", "System.Buffers.dll")
+          $deps = @("System.Text.Json.dll", "System.Memory.dll", "System.Buffers.dll",
+                    "System.Runtime.CompilerServices.Unsafe.dll", "System.Numerics.Vectors.dll",
+                    "Microsoft.Bcl.AsyncInterfaces.dll", "System.Threading.Tasks.Extensions.dll",
+                    "System.Text.Encodings.Web.dll")
           foreach ($dep in $deps) {
-            $path = Join-Path $depsDir $dep
+            $path = "bin/Release/$dep"
             if (Test-Path $path) {
               Copy-Item $path -Destination "bundle/ExtractCoords.bundle/Contents/"
               Write-Host "Copied: $dep"
             }
           }
 
-          # 번들 내용 확인
           Write-Host "Bundle contents:"
           Get-ChildItem -Recurse "bundle"
 
-          # ZIP 생성
           Compress-Archive -Path "bundle/ExtractCoords.bundle/*" -DestinationPath "ExtractCoords.bundle.zip" -Force
-
-          Write-Host "Created ZIP file:"
           Get-ChildItem "ExtractCoords.bundle.zip"
 
       - name: Upload Plugin Artifact
