@@ -20,23 +20,41 @@ jobs:
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Restore NuGet packages
-        run: nuget restore apps/api/design-automation/plugin/ExtractCoords.csproj
-
-      - name: Download AutoCAD ObjectARX SDK (minimal)
+      - name: Download ObjectARX SDK (2024)
         run: |
-          # AutoCAD 2024 ObjectARX 참조 DLL 다운로드 (NuGet에서)
-          nuget install AutoCAD.NET -Version 24.0.0 -OutputDirectory packages
+          # ObjectARX 2024 SDK from Autodesk (reference assemblies only)
+          # These are the minimal DLLs needed for compilation
+          $sdkPath = "apps/api/design-automation/plugin/sdk"
+          New-Item -ItemType Directory -Path $sdkPath -Force
+
+          # Download from Autodesk's ObjectARX SDK (GitHub mirror)
+          $baseUrl = "https://github.com/AuZhou/acad-ref/raw/main/AutoCAD%202024"
+
+          # Download required reference assemblies
+          Invoke-WebRequest -Uri "$baseUrl/AcCoreMgd.dll" -OutFile "$sdkPath/AcCoreMgd.dll"
+          Invoke-WebRequest -Uri "$baseUrl/AcDbMgd.dll" -OutFile "$sdkPath/AcDbMgd.dll"
+
+          Write-Host "Downloaded ObjectARX reference assemblies to $sdkPath"
+          Get-ChildItem $sdkPath
+
+      - name: Restore NuGet packages
+        run: |
+          cd apps/api/design-automation/plugin
+          nuget restore ExtractCoords.csproj
 
       - name: Build Plugin
         run: |
           cd apps/api/design-automation/plugin
 
-          # ObjectARX 참조 경로 설정
-          $env:AUTOCAD_PATH = "${{ github.workspace }}/packages/AutoCAD.NET.24.0.0/lib/net48"
+          # ObjectARX 참조 경로 설정 (절대 경로)
+          $env:AUTOCAD_PATH = "${{ github.workspace }}/apps/api/design-automation/plugin/sdk"
+
+          Write-Host "AUTOCAD_PATH: $env:AUTOCAD_PATH"
+          Write-Host "Files in SDK folder:"
+          Get-ChildItem $env:AUTOCAD_PATH
 
           # MSBuild로 빌드
-          msbuild ExtractCoords.csproj /p:Configuration=Release /p:Platform="Any CPU"
+          msbuild ExtractCoords.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:AUTOCAD_PATH="$env:AUTOCAD_PATH"
 
       - name: Create Bundle Structure
         run: |
@@ -54,8 +72,15 @@ jobs:
             Copy-Item "bin/Release/System.Text.Json.dll" -Destination "bundle/ExtractCoords.bundle/Contents/"
           }
 
+          # 번들 내용 확인
+          Write-Host "Bundle contents:"
+          Get-ChildItem -Recurse "bundle"
+
           # ZIP 생성
           Compress-Archive -Path "bundle/ExtractCoords.bundle/*" -DestinationPath "ExtractCoords.bundle.zip" -Force
+
+          Write-Host "Created ZIP file:"
+          Get-ChildItem "ExtractCoords.bundle.zip"
 
       - name: Upload Plugin Artifact
         uses: actions/upload-artifact@v4
