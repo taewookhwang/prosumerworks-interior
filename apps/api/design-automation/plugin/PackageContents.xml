@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+PackageContents.xml - Required for Design Automation AppBundle
+This file tells Design Automation how to load the plugin
+-->
+<ApplicationPackage
+  SchemaVersion="1.0"
+  Name="ExtractCoords"
+  Description="Extracts Block Reference coordinates from DWG files"
+  Author="Interior App"
+  Version="1.0.0"
+  ProductCode="{GUID-PLACEHOLDER}">
+
+  <CompanyDetails
+    Name="Interior App"
+    Email="support@interior-app.com" />
+
+  <RuntimeRequirements
+    OS="Win64"
+    Platform="AutoCAD" />
+
+  <Components>
+    <RuntimeRequirements
+      OS="Win64"
+      Platform="AutoCAD"
+      SeriesMin="R24.0"
+      SeriesMax="R25.0" />
+
+    <ComponentEntry
+      AppName="ExtractCoords"
+      ModuleName="./Contents/ExtractCoords.dll"
+      AppDescription="Block Reference Coordinate Extractor"
+      LoadOnAutoCADStartup="True"
+      AppType=".Net" />
+  </Components>
+
+</ApplicationPackage>

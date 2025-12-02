@@ -1,0 +1,66 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# React Native / Mobile
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/android/build/
+*.keystore
+!debug.keystore
+
+# NestJS / API
+apps/api/dist/
+
+# Design Automation build outputs
+apps/api/design-automation/plugin/bin/
+apps/api/design-automation/plugin/obj/
+apps/api/design-automation/plugin/bundle/
+apps/api/design-automation/plugin/*.zip
+apps/api/design-automation/plugin/packages/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Cache
+.cache/
+.npm/
+.eslintcache

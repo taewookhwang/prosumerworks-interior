@@ -1,0 +1,65 @@
+name: Build AutoCAD Plugin
+
+on:
+  workflow_dispatch:  # 수동 실행
+  push:
+    paths:
+      - 'apps/api/design-automation/plugin/**'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET Framework
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore apps/api/design-automation/plugin/ExtractCoords.csproj
+
+      - name: Download AutoCAD ObjectARX SDK (minimal)
+        run: |
+          # AutoCAD 2024 ObjectARX 참조 DLL 다운로드 (NuGet에서)
+          nuget install AutoCAD.NET -Version 24.0.0 -OutputDirectory packages
+
+      - name: Build Plugin
+        run: |
+          cd apps/api/design-automation/plugin
+
+          # ObjectARX 참조 경로 설정
+          $env:AUTOCAD_PATH = "${{ github.workspace }}/packages/AutoCAD.NET.24.0.0/lib/net48"
+
+          # MSBuild로 빌드
+          msbuild ExtractCoords.csproj /p:Configuration=Release /p:Platform="Any CPU"
+
+      - name: Create Bundle Structure
+        run: |
+          cd apps/api/design-automation/plugin
+
+          # 번들 디렉토리 생성
+          New-Item -ItemType Directory -Path "bundle/ExtractCoords.bundle/Contents" -Force
+
+          # 파일 복사
+          Copy-Item "bin/Release/ExtractCoords.dll" -Destination "bundle/ExtractCoords.bundle/Contents/"
+          Copy-Item "PackageContents.xml" -Destination "bundle/ExtractCoords.bundle/"
+
+          # System.Text.Json 복사 (있는 경우)
+          if (Test-Path "bin/Release/System.Text.Json.dll") {
+            Copy-Item "bin/Release/System.Text.Json.dll" -Destination "bundle/ExtractCoords.bundle/Contents/"
+          }
+
+          # ZIP 생성
+          Compress-Archive -Path "bundle/ExtractCoords.bundle/*" -DestinationPath "ExtractCoords.bundle.zip" -Force
+
+      - name: Upload Plugin Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExtractCoords-Plugin
+          path: apps/api/design-automation/plugin/ExtractCoords.bundle.zip
+          retention-days: 90

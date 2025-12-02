@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>InteriorApp</RootNamespace>
+    <AssemblyName>ExtractCoords</AssemblyName>
+    <OutputType>Library</OutputType>
+    <LangVersion>latest</LangVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+    <!-- Design Automation specific settings -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <!-- AutoCAD ObjectARX References for Design Automation -->
+  <!-- These DLLs are provided by the Design Automation runtime -->
+  <ItemGroup>
+    <Reference Include="AcCoreMgd">
+      <HintPath>$(AUTOCAD_PATH)\AcCoreMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AcDbMgd">
+      <HintPath>$(AUTOCAD_PATH)\AcDbMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- For local development, you can use NuGet packages -->
+  <!-- Uncomment below for local testing with AutoCAD installed -->
+  <!--
+  <ItemGroup>
+    <PackageReference Include="AutoCAD.NET.Core" Version="24.0.0" />
+    <PackageReference Include="AutoCAD.NET.Model" Version="24.0.0" />
+  </ItemGroup>
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="6.0.0" />
+  </ItemGroup>
+
+</Project>
