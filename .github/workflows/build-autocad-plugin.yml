@@ -131,12 +131,39 @@ jobs:
         shell: pwsh
         working-directory: apps/api/design-automation/plugin
         run: |
+          Write-Host "=== Finding build output ==="
+          Get-ChildItem -Recurse "bin" -Filter "*.dll" | ForEach-Object {
+            Write-Host "Found: $($_.FullName)"
+          }
+
+          # Find the actual output directory
+          $outputDir = $null
+          $possiblePaths = @(
+            "bin/Release",
+            "bin/Any CPU/Release",
+            "bin/Release/net48",
+            "bin/x64/Release"
+          )
+
+          foreach ($path in $possiblePaths) {
+            if (Test-Path "$path/ExtractCoords.dll") {
+              $outputDir = $path
+              Write-Host "Found output at: $outputDir"
+              break
+            }
+          }
+
+          if ($outputDir -eq $null) {
+            Write-Error "Could not find ExtractCoords.dll in any expected location!"
+            exit 1
+          }
+
           New-Item -ItemType Directory -Path "bundle/ExtractCoords.bundle/Contents" -Force
 
-          Copy-Item "bin/Release/ExtractCoords.dll" -Destination "bundle/ExtractCoords.bundle/Contents/"
+          Copy-Item "$outputDir/ExtractCoords.dll" -Destination "bundle/ExtractCoords.bundle/Contents/"
           Copy-Item "PackageContents.xml" -Destination "bundle/ExtractCoords.bundle/"
 
-          Get-ChildItem "bin/Release/*.dll" | ForEach-Object {
+          Get-ChildItem "$outputDir/*.dll" | ForEach-Object {
             if ($_.Name -notmatch "^Ac") {
               Copy-Item $_.FullName -Destination "bundle/ExtractCoords.bundle/Contents/"
               Write-Host "Copied: $($_.Name)"
