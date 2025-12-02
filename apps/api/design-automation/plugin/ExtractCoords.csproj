@@ -41,4 +41,9 @@
     <PackageReference Include="System.Text.Json" Version="6.0.0" />
   </ItemGroup>
 
+  <!-- Exclude stub source files from compilation -->
+  <ItemGroup>
+    <Compile Remove="scripts\**\*.cs" />
+  </ItemGroup>
+
 </Project>

@@ -5,11 +5,17 @@
 
 namespace Autodesk.AutoCAD.Runtime
 {
-    [System.AttributeUsage(System.AttributeTargets.Class)]
-    public class CommandClassAttribute : System.Attribute { }
+    [System.AttributeUsage(System.AttributeTargets.Assembly)]
+    public class CommandClassAttribute : System.Attribute
+    {
+        public CommandClassAttribute(System.Type type) { }
+    }
 
-    [System.AttributeUsage(System.AttributeTargets.Class)]
-    public class ExtensionApplicationAttribute : System.Attribute { }
+    [System.AttributeUsage(System.AttributeTargets.Assembly)]
+    public class ExtensionApplicationAttribute : System.Attribute
+    {
+        public ExtensionApplicationAttribute(System.Type type) { }
+    }
 
     [System.AttributeUsage(System.AttributeTargets.Method)]
     public class CommandMethodAttribute : System.Attribute
