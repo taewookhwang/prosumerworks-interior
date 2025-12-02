@@ -64,3 +64,11 @@ temp/
 .cache/
 .npm/
 .eslintcache
+
+# AutoCAD plugin lib folder (NuGet packages fetched during build)
+apps/api/design-automation/plugin/lib/*.dll
+apps/api/design-automation/plugin/lib/*.nupkg
+apps/api/design-automation/plugin/lib/autocad_*/
+apps/api/design-automation/plugin/ExtractCoords.bundle/
+apps/api/design-automation/plugin/ExtractCoords-2/
+

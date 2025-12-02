@@ -23,77 +23,9 @@ jobs:
       - name: Setup .NET Framework
         uses: microsoft/setup-msbuild@v2
 
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
-
-      - name: Create ObjectARX Stub Assemblies
-        shell: pwsh
-        working-directory: apps/api/design-automation/plugin
-        run: |
-          Write-Host "=== Creating stub assemblies using csc.exe ==="
-
-          # Create lib directory
-          $libPath = Join-Path $PWD "lib"
-          New-Item -ItemType Directory -Path $libPath -Force | Out-Null
-          Write-Host "Created lib directory: $libPath"
-
-          # Find csc.exe
-          $cscPath = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-          if (-not (Test-Path $cscPath)) {
-            $cscPath = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-          }
-
-          if (-not (Test-Path $cscPath)) {
-            Write-Error "Could not find csc.exe!"
-            exit 1
-          }
-          Write-Host "Using csc.exe: $cscPath"
-
-          # Verify source file exists
-          $stubSource = Join-Path $PWD "scripts\ObjectARXStubs.cs"
-          if (-not (Test-Path $stubSource)) {
-            Write-Error "Stub source not found: $stubSource"
-            exit 1
-          }
-          Write-Host "Stub source: $stubSource"
-
-          # Compile AcCoreMgd.dll
-          $acCorePath = Join-Path $libPath "AcCoreMgd.dll"
-          Write-Host "Compiling AcCoreMgd.dll..."
-          & $cscPath /target:library /out:$acCorePath /nologo /nowarn:CS0169,CS0649 $stubSource
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to compile AcCoreMgd.dll (exit code: $LASTEXITCODE)"
-            exit 1
-          }
-
-          if (-not (Test-Path $acCorePath)) {
-            Write-Error "AcCoreMgd.dll was not created!"
-            exit 1
-          }
-          Write-Host "Created: $acCorePath"
-
-          # Copy as AcDbMgd.dll
-          $acDbPath = Join-Path $libPath "AcDbMgd.dll"
-          Copy-Item $acCorePath -Destination $acDbPath
-          Write-Host "Created: $acDbPath"
-
-          # Verify both files exist
-          Write-Host "=== Verifying lib contents ==="
-          Get-ChildItem $libPath | ForEach-Object {
-            Write-Host "  $($_.Name) - $($_.Length) bytes"
-          }
-
-          if ((Test-Path $acCorePath) -and (Test-Path $acDbPath)) {
-            Write-Host "=== Stub assemblies created successfully! ==="
-          } else {
-            Write-Error "Stub assembly verification failed!"
-            exit 1
-          }
-
       - name: Restore NuGet packages
         working-directory: apps/api/design-automation/plugin
-        run: nuget restore ExtractCoords.csproj -NoCache
+        run: dotnet restore ExtractCoords.csproj
 
       - name: Build Plugin
         shell: pwsh
@@ -102,29 +34,12 @@ jobs:
           Write-Host "=== Current directory ==="
           Write-Host $PWD
 
-          Write-Host "=== Verifying lib folder ==="
-          $libPath = Join-Path $PWD "lib"
-          if (Test-Path $libPath) {
-            Get-ChildItem $libPath | ForEach-Object {
-              Write-Host "  $($_.Name) - $($_.Length) bytes"
-            }
-          } else {
-            Write-Error "lib folder not found!"
-            exit 1
-          }
-
-          Write-Host "=== Verifying .csproj references ==="
-          $csprojPath = Join-Path $PWD "ExtractCoords.csproj"
-          Select-String -Path $csprojPath -Pattern "HintPath"
-
-          Write-Host "=== Building plugin with verbose output ==="
-          msbuild ExtractCoords.csproj /p:Configuration=Release /p:Platform="Any CPU" /v:normal
+          Write-Host "=== Building plugin with dotnet build ==="
+          dotnet build ExtractCoords.csproj -c Release
 
           Write-Host "=== Build output ==="
-          if (Test-Path "bin/Release") {
-            Get-ChildItem "bin/Release" | ForEach-Object {
-              Write-Host "  $($_.Name) - $($_.Length) bytes"
-            }
+          Get-ChildItem -Recurse "bin" -Filter "*.dll" | ForEach-Object {
+            Write-Host "  $($_.FullName) - $($_.Length) bytes"
           }
 
       - name: Create Bundle
@@ -140,8 +55,8 @@ jobs:
           $outputDir = $null
           $possiblePaths = @(
             "bin/Release",
-            "bin/Any CPU/Release",
             "bin/Release/net48",
+            "bin/Any CPU/Release",
             "bin/x64/Release"
           )
 
@@ -158,22 +73,53 @@ jobs:
             exit 1
           }
 
+          # Create bundle structure
           New-Item -ItemType Directory -Path "bundle/ExtractCoords.bundle/Contents" -Force
 
+          # Copy main DLL
           Copy-Item "$outputDir/ExtractCoords.dll" -Destination "bundle/ExtractCoords.bundle/Contents/"
-          Copy-Item "PackageContents.xml" -Destination "bundle/ExtractCoords.bundle/"
+          Write-Host "Copied: ExtractCoords.dll"
 
+          # Copy PackageContents.xml
+          Copy-Item "PackageContents.xml" -Destination "bundle/ExtractCoords.bundle/"
+          Write-Host "Copied: PackageContents.xml"
+
+          # Copy dependency DLLs (excluding AutoCAD/ObjectARX assemblies)
           Get-ChildItem "$outputDir/*.dll" | ForEach-Object {
-            if ($_.Name -notmatch "^Ac") {
+            # Skip AutoCAD assemblies - they are provided by Design Automation runtime
+            if ($_.Name -match "^(Ac|acdb|AcMgd)") {
+              Write-Host "Skipping AutoCAD assembly: $($_.Name)"
+            } elseif ($_.Name -eq "ExtractCoords.dll") {
+              # Already copied
+            } else {
               Copy-Item $_.FullName -Destination "bundle/ExtractCoords.bundle/Contents/"
-              Write-Host "Copied: $($_.Name)"
+              Write-Host "Copied dependency: $($_.Name)"
             }
           }
 
           Write-Host "=== Bundle contents ==="
           Get-ChildItem -Recurse "bundle"
 
+          # Create zip file
           Compress-Archive -Path "bundle/ExtractCoords.bundle/*" -DestinationPath "ExtractCoords.bundle.zip" -Force
+          Write-Host "Created: ExtractCoords.bundle.zip"
+
+      - name: Verify Bundle
+        shell: pwsh
+        working-directory: apps/api/design-automation/plugin
+        run: |
+          Write-Host "=== Verifying bundle zip ==="
+          Expand-Archive -Path "ExtractCoords.bundle.zip" -DestinationPath "verify" -Force
+          Get-ChildItem -Recurse "verify" | ForEach-Object {
+            Write-Host "  $($_.FullName)"
+          }
+
+          # Check DLL size (should be > 20KB for a proper build)
+          $dll = Get-Item "verify/Contents/ExtractCoords.dll"
+          Write-Host "ExtractCoords.dll size: $($dll.Length) bytes"
+          if ($dll.Length -lt 20000) {
+            Write-Warning "DLL size is smaller than expected. Build might be incomplete."
+          }
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

@@ -9,33 +9,23 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 
     <!-- Design Automation specific settings -->
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
-  <!-- AutoCAD ObjectARX References for Design Automation -->
-  <!-- These stub DLLs are used for compilation only -->
-  <!-- The actual ObjectARX assemblies are provided by Design Automation runtime -->
+  <!-- AutoCAD ObjectARX NuGet packages for AutoCAD 2024 (24.x) -->
+  <!-- Using 24.0 which supports net47/net48. Runtime provides actual assemblies. -->
   <ItemGroup>
-    <Reference Include="AcCoreMgd">
-      <HintPath>lib\AcCoreMgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="AcDbMgd">
-      <HintPath>lib\AcDbMgd.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <PackageReference Include="AutoCAD.NET.Core" Version="24.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="AutoCAD.NET.Model" Version="24.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
-
-  <!-- For local development, you can use NuGet packages -->
-  <!-- Uncomment below for local testing with AutoCAD installed -->
-  <!--
-  <ItemGroup>
-    <PackageReference Include="AutoCAD.NET.Core" Version="24.0.0" />
-    <PackageReference Include="AutoCAD.NET.Model" Version="24.0.0" />
-  </ItemGroup>
-  -->
 
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="6.0.0" />
