@@ -70,6 +70,12 @@ namespace Autodesk.AutoCAD.ApplicationServices
             get { return null; }
         }
 
+        public static Autodesk.AutoCAD.DatabaseServices.Database WorkingDatabase
+        {
+            get { return null; }
+            set { }
+        }
+
         public string FindFile(string fileName, Autodesk.AutoCAD.DatabaseServices.Database db, FindFileHint hint)
         {
             return "";
