@@ -30,68 +30,66 @@ jobs:
         shell: pwsh
         working-directory: apps/api/design-automation/plugin
         run: |
-          New-Item -ItemType Directory -Path "lib" -Force
+          Write-Host "=== Creating stub assemblies using csc.exe ==="
 
-          Write-Host "=== Creating stub project ==="
+          # Create lib directory
+          $libPath = Join-Path $PWD "lib"
+          New-Item -ItemType Directory -Path $libPath -Force | Out-Null
+          Write-Host "Created lib directory: $libPath"
 
-          # Create a temporary .NET project to compile the stubs
-          $stubProjectDir = "temp_stubs"
-          New-Item -ItemType Directory -Path $stubProjectDir -Force
-
-          # Create project file
-          $csproj = @"
-          <Project Sdk="Microsoft.NET.Sdk">
-            <PropertyGroup>
-              <TargetFramework>net48</TargetFramework>
-              <OutputType>Library</OutputType>
-              <AssemblyName>AcCoreMgd</AssemblyName>
-            </PropertyGroup>
-          </Project>
-          "@
-          $csproj | Out-File -FilePath "$stubProjectDir/stubs.csproj" -Encoding UTF8
-
-          # Copy stub source
-          Copy-Item "scripts/ObjectARXStubs.cs" -Destination "$stubProjectDir/"
-
-          Write-Host "=== Building stub assembly ==="
-          Push-Location $stubProjectDir
-
-          # Try dotnet build first
-          dotnet build -c Release -o ../lib 2>&1
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "dotnet build failed, trying csc.exe..."
-
-            # Find csc.exe
-            $cscPaths = @(
-              "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe",
-              "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-            )
-
-            foreach ($cscPath in $cscPaths) {
-              if (Test-Path $cscPath) {
-                Write-Host "Using: $cscPath"
-                & $cscPath /target:library /out:"..\lib\AcCoreMgd.dll" /nologo ObjectARXStubs.cs
-                break
-              }
-            }
+          # Find csc.exe
+          $cscPath = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $cscPath)) {
+            $cscPath = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
           }
 
-          Pop-Location
+          if (-not (Test-Path $cscPath)) {
+            Write-Error "Could not find csc.exe!"
+            exit 1
+          }
+          Write-Host "Using csc.exe: $cscPath"
 
-          # Create copy for AcDbMgd
-          if (Test-Path "lib/AcCoreMgd.dll") {
-            Copy-Item "lib/AcCoreMgd.dll" -Destination "lib/AcDbMgd.dll"
-            Write-Host "=== Stub assemblies created ==="
-          } else {
-            Write-Error "Failed to create stub assemblies!"
+          # Verify source file exists
+          $stubSource = Join-Path $PWD "scripts\ObjectARXStubs.cs"
+          if (-not (Test-Path $stubSource)) {
+            Write-Error "Stub source not found: $stubSource"
+            exit 1
+          }
+          Write-Host "Stub source: $stubSource"
+
+          # Compile AcCoreMgd.dll
+          $acCorePath = Join-Path $libPath "AcCoreMgd.dll"
+          Write-Host "Compiling AcCoreMgd.dll..."
+          & $cscPath /target:library /out:$acCorePath /nologo /nowarn:CS0169,CS0649 $stubSource
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to compile AcCoreMgd.dll (exit code: $LASTEXITCODE)"
             exit 1
           }
 
-          Get-ChildItem lib
+          if (-not (Test-Path $acCorePath)) {
+            Write-Error "AcCoreMgd.dll was not created!"
+            exit 1
+          }
+          Write-Host "Created: $acCorePath"
 
-          # Cleanup
-          Remove-Item -Recurse -Force $stubProjectDir -ErrorAction SilentlyContinue
+          # Copy as AcDbMgd.dll
+          $acDbPath = Join-Path $libPath "AcDbMgd.dll"
+          Copy-Item $acCorePath -Destination $acDbPath
+          Write-Host "Created: $acDbPath"
+
+          # Verify both files exist
+          Write-Host "=== Verifying lib contents ==="
+          Get-ChildItem $libPath | ForEach-Object {
+            Write-Host "  $($_.Name) - $($_.Length) bytes"
+          }
+
+          if ((Test-Path $acCorePath) -and (Test-Path $acDbPath)) {
+            Write-Host "=== Stub assemblies created successfully! ==="
+          } else {
+            Write-Error "Stub assembly verification failed!"
+            exit 1
+          }
 
       - name: Restore NuGet packages
         working-directory: apps/api/design-automation/plugin
@@ -101,11 +99,33 @@ jobs:
         shell: pwsh
         working-directory: apps/api/design-automation/plugin
         run: |
-          Write-Host "=== Verifying lib folder ==="
-          Get-ChildItem lib
+          Write-Host "=== Current directory ==="
+          Write-Host $PWD
 
-          Write-Host "=== Building plugin ==="
-          msbuild ExtractCoords.csproj /p:Configuration=Release /p:Platform="Any CPU"
+          Write-Host "=== Verifying lib folder ==="
+          $libPath = Join-Path $PWD "lib"
+          if (Test-Path $libPath) {
+            Get-ChildItem $libPath | ForEach-Object {
+              Write-Host "  $($_.Name) - $($_.Length) bytes"
+            }
+          } else {
+            Write-Error "lib folder not found!"
+            exit 1
+          }
+
+          Write-Host "=== Verifying .csproj references ==="
+          $csprojPath = Join-Path $PWD "ExtractCoords.csproj"
+          Select-String -Path $csprojPath -Pattern "HintPath"
+
+          Write-Host "=== Building plugin with verbose output ==="
+          msbuild ExtractCoords.csproj /p:Configuration=Release /p:Platform="Any CPU" /v:normal
+
+          Write-Host "=== Build output ==="
+          if (Test-Path "bin/Release") {
+            Get-ChildItem "bin/Release" | ForEach-Object {
+              Write-Host "  $($_.Name) - $($_.Length) bytes"
+            }
+          }
 
       - name: Create Bundle
         shell: pwsh
